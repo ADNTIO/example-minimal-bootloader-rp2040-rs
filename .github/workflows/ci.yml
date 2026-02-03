@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main, develop]
+    tags: ['v*']
   pull_request:
     branches: [main, develop]
 
@@ -12,7 +13,7 @@ env:
 
 jobs:
   check:
-    name: Format + Clippy + Build
+    name: Format + Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,8 +26,21 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Clippy
+      - name: Clippy (embedded)
         run: cargo clippy --release -p crispy-bootloader -p crispy-fw-sample --target $TARGET -- -D warnings
+
+      - name: Clippy (host)
+        run: cargo clippy --release -p crispy-upload -- -D warnings
+
+  build-firmware:
+    name: Build Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv6m-none-eabi
 
       - name: Build
         run: cargo build --release -p crispy-bootloader -p crispy-fw-sample --target $TARGET
@@ -34,8 +48,14 @@ jobs:
       - name: Install arm-none-eabi-objcopy
         run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
 
-      - name: Build combined binary + UF2
-        run: ./scripts/build-combined.sh
+      - name: Create binaries
+        run: |
+          arm-none-eabi-objcopy -O binary target/$TARGET/release/crispy-bootloader target/$TARGET/release/crispy-bootloader.bin
+          arm-none-eabi-objcopy -O binary target/$TARGET/release/crispy-fw-sample target/$TARGET/release/crispy-fw-sample.bin
+          # Bootloader-only UF2
+          python3 scripts/bin2uf2.py target/$TARGET/release/crispy-bootloader.bin target/$TARGET/release/crispy-bootloader.uf2 0x10000000
+          # Combined (bootloader + firmware sample)
+          ./scripts/build-combined.sh
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
@@ -43,6 +63,80 @@ jobs:
           name: firmware
           path: |
             target/${{ env.TARGET }}/release/crispy-bootloader
-            target/${{ env.TARGET }}/release/crispy-fw-sample
+            target/${{ env.TARGET }}/release/crispy-bootloader.bin
+            target/${{ env.TARGET }}/release/crispy-bootloader.uf2
             target/${{ env.TARGET }}/release/combined.bin
             target/${{ env.TARGET }}/release/combined.uf2
+
+  build-upload-linux:
+    name: Build crispy-upload (Linux x64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install libudev
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+
+      - name: Build
+        run: cargo build --release -p crispy-upload
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: crispy-upload-linux-x64
+          path: target/release/crispy-upload
+
+  build-upload-windows:
+    name: Build crispy-upload (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build --release -p crispy-upload
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: crispy-upload-windows-x64
+          path: target/release/crispy-upload.exe
+
+  release:
+    name: Create Release
+    needs: [check, build-firmware, build-upload-linux, build-upload-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          # Bootloader
+          cp artifacts/firmware/crispy-bootloader release/crispy-bootloader.elf
+          cp artifacts/firmware/crispy-bootloader.bin release/
+          cp artifacts/firmware/crispy-bootloader.uf2 release/
+          # Combined (bootloader + sample firmware)
+          cp artifacts/firmware/combined.bin release/
+          cp artifacts/firmware/combined.uf2 release/
+          # Upload tools
+          cp artifacts/crispy-upload-linux-x64/crispy-upload release/crispy-upload-linux-x64
+          cp artifacts/crispy-upload-windows-x64/crispy-upload.exe release/crispy-upload-windows-x64.exe
+          chmod +x release/crispy-upload-linux-x64
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*
+          generate_release_notes: true
