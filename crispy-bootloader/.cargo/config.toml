@@ -1,5 +1,0 @@
-[build]
-target = "thumbv8m.main-none-eabihf"
-
-[env]
-DEFMT_LOG = "debug"

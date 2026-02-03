@@ -9,11 +9,17 @@ name = "crispy-bootloader"
 path = "src/main.rs"
 
 [dependencies]
-crispy-common = { path = "../crispy-common" }
+crispy-common = { path = "../crispy-common", features = ["embedded"] }
 rp2040-boot2 = "0.3"
+rp2040-hal = { version = "0.11", features = ["rt", "critical-section-impl"] }
 embedded-hal = "1.0.0"
 cortex-m = "0.7"
 cortex-m-rt = "0.7"
+usb-device = "0.3"
+usbd-serial = "0.2"
+crc = { version = "3", default-features = false }
+postcard = { version = "1", features = ["heapless"] }
+heapless = "0.8"
 panic-probe = { version = "1", features = ["print-defmt"] }
 defmt = "1"
 defmt-rtt = "1"

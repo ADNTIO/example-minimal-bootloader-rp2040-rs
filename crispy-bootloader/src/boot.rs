@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 ADNT Sarl <info@adnt.io>
 
-const BOOT_DATA_MAGIC: u32 = 0xB007_DA7A;
-const RAM_START: u32 = 0x2000_0000;
-const RAM_END: u32 = 0x2004_0000;
+//! Boot management: memory layout, firmware validation, bank selection, and jump.
+
+use crate::flash;
+use crispy_common::protocol::{BootData, RAM_UPDATE_FLAG_ADDR, RAM_UPDATE_MAGIC};
+
+const MAX_BOOT_ATTEMPTS: u8 = 3;
 
 unsafe extern "C" {
     static __fw_a_entry: u32;
@@ -11,6 +14,8 @@ unsafe extern "C" {
     static __fw_ram_base: u32;
     static __fw_copy_size: u32;
     static __boot_data_addr: u32;
+    static __fw_ram_start: u32;
+    static __fw_ram_end: u32;
 }
 
 macro_rules! linker_addr {
@@ -19,6 +24,7 @@ macro_rules! linker_addr {
     };
 }
 
+#[allow(dead_code)]
 pub struct MemoryLayout {
     pub fw_a: u32,
     pub fw_b: u32,
@@ -58,31 +64,120 @@ impl VectorTable {
 }
 
 fn is_in_ram(addr: u32) -> bool {
-    (RAM_START..RAM_END).contains(&addr)
+    let start = linker_addr!(__fw_ram_start);
+    let end = linker_addr!(__fw_ram_end);
+    (start..=end).contains(&addr)
 }
 
-fn read_volatile_u32(addr: u32) -> u32 {
-    unsafe { (addr as *const u32).read_volatile() }
-}
-
-fn read_volatile_u8(addr: u32) -> u8 {
-    unsafe { (addr as *const u8).read_volatile() }
-}
-
-pub fn read_boot_data(addr: u32) -> Option<u8> {
-    if read_volatile_u32(addr) == BOOT_DATA_MAGIC {
-        Some(read_volatile_u8(addr + 4))
-    } else {
-        None
+/// Check if update mode is requested via GP2 pin (LOW) or RAM magic flag.
+pub fn check_update_trigger(gp2_is_low: bool) -> bool {
+    let ram_flag = unsafe { (RAM_UPDATE_FLAG_ADDR as *const u32).read_volatile() };
+    unsafe {
+        (RAM_UPDATE_FLAG_ADDR as *mut u32).write_volatile(0);
     }
+    gp2_is_low || ram_flag == RAM_UPDATE_MAGIC
 }
 
+/// Validate a firmware bank with full CRC check.
+/// Returns false if size == 0 (no firmware metadata).
+pub fn validate_bank_with_crc(addr: u32, crc: u32, size: u32) -> bool {
+    if size == 0 {
+        return false;
+    }
+
+    let vt = unsafe { VectorTable::read_from(addr) };
+    if !vt.is_valid_for_ram_execution() {
+        return false;
+    }
+
+    let actual_crc = flash::compute_crc32(addr, size);
+    if actual_crc != crc {
+        defmt::println!(
+            "CRC mismatch at 0x{:08x}: expected 0x{:08x}, got 0x{:08x}",
+            addr,
+            crc,
+            actual_crc
+        );
+        return false;
+    }
+
+    true
+}
+
+/// Simple vector table validation without CRC (fallback mode).
 pub fn validate_bank(flash_addr: u32) -> Option<(u32, u32)> {
     let vt = unsafe { VectorTable::read_from(flash_addr) };
     if vt.is_valid_for_ram_execution() {
         Some((vt.initial_sp, vt.reset_vector))
     } else {
         None
+    }
+}
+
+/// Select which bank to boot from, with automatic rollback on failure.
+pub fn select_boot_bank(bd: &BootData, layout: &MemoryLayout) -> (u32, BootData) {
+    let mut bd = *bd;
+
+    if bd.boot_attempts >= MAX_BOOT_ATTEMPTS && bd.confirmed == 0 {
+        defmt::println!(
+            "Boot attempts exhausted ({}), rolling back",
+            bd.boot_attempts
+        );
+        bd.active_bank = toggle_bank(bd.active_bank);
+        bd.boot_attempts = 0;
+        bd.confirmed = 0;
+    }
+
+    let (primary_addr, fallback_addr) = bank_addresses(&bd, layout);
+    let (primary_crc, primary_size) = bank_metadata(&bd, bd.active_bank);
+    let (fallback_crc, fallback_size) = bank_metadata(&bd, toggle_bank(bd.active_bank));
+
+    if validate_bank_with_crc(primary_addr, primary_crc, primary_size) {
+        bd.boot_attempts += 1;
+        return (primary_addr, bd);
+    }
+
+    defmt::println!("Primary bank invalid, trying fallback");
+
+    if validate_bank_with_crc(fallback_addr, fallback_crc, fallback_size) {
+        bd.active_bank = toggle_bank(bd.active_bank);
+        bd.boot_attempts = 1;
+        bd.confirmed = 0;
+        return (fallback_addr, bd);
+    }
+
+    if validate_bank(primary_addr).is_some() {
+        bd.boot_attempts += 1;
+        return (primary_addr, bd);
+    }
+
+    if validate_bank(fallback_addr).is_some() {
+        bd.active_bank = toggle_bank(bd.active_bank);
+        bd.boot_attempts = 1;
+        return (fallback_addr, bd);
+    }
+
+    bd.boot_attempts += 1;
+    (primary_addr, bd)
+}
+
+fn toggle_bank(bank: u8) -> u8 {
+    if bank == 0 { 1 } else { 0 }
+}
+
+fn bank_addresses(bd: &BootData, layout: &MemoryLayout) -> (u32, u32) {
+    if bd.active_bank == 0 {
+        (layout.fw_a, layout.fw_b)
+    } else {
+        (layout.fw_b, layout.fw_a)
+    }
+}
+
+fn bank_metadata(bd: &BootData, bank: u8) -> (u32, u32) {
+    if bank == 0 {
+        (bd.crc_a, bd.size_a)
+    } else {
+        (bd.crc_b, bd.size_b)
     }
 }
 
@@ -122,4 +217,56 @@ unsafe fn jump_to_firmware(initial_sp: u32, reset_vector: u32) -> ! {
         reset = in(reg) reset_vector,
         options(noreturn)
     );
+}
+
+/// Run the normal boot sequence.
+/// If no valid firmware is found, enters update mode.
+pub fn run_normal_boot(p: &mut crate::peripherals::Peripherals) -> ! {
+    use embedded_hal::delay::DelayNs;
+
+    defmt::println!("Normal boot path");
+
+    let layout = MemoryLayout::from_linker();
+    let bd = crate::flash::read_boot_data();
+
+    defmt::println!(
+        "BOOT_DATA: bank={}, confirmed={}, attempts={}, size_a={}, size_b={}, valid={}",
+        bd.active_bank,
+        bd.confirmed,
+        bd.boot_attempts,
+        bd.size_a,
+        bd.size_b,
+        bd.is_valid()
+    );
+
+    // If BootData is valid but no firmware uploaded (both sizes 0), enter update mode
+    if bd.is_valid() && bd.size_a == 0 && bd.size_b == 0 {
+        defmt::println!("No firmware uploaded, entering update mode");
+        crate::update::enter_update_mode(p);
+    }
+
+    let (flash_addr, updated_bd) = select_boot_bank(&bd, &layout);
+    defmt::println!("Selected bank at 0x{:08x}", flash_addr);
+
+    unsafe {
+        crate::flash::write_boot_data(&updated_bd);
+    }
+
+    let bank_label = if flash_addr == layout.fw_a { "A" } else { "B" };
+    if validate_bank(flash_addr).is_none() {
+        defmt::println!("No valid firmware in any bank, entering update mode");
+        crate::update::enter_update_mode(p);
+    }
+
+    defmt::println!(
+        "Loading bank {} from 0x{:08x} to 0x{:08x} ({}KB)",
+        bank_label,
+        flash_addr,
+        layout.ram_base,
+        layout.copy_size / 1024
+    );
+    defmt::println!("Jumping to firmware...");
+    p.timer.delay_ms(10u32);
+
+    unsafe { load_and_jump(flash_addr, &layout) }
 }
