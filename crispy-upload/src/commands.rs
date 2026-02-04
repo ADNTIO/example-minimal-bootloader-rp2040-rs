@@ -99,8 +99,8 @@ pub fn upload(transport: &mut Transport, file: &Path, bank: u8, version: u32) ->
             .progress_chars("#>-"),
     );
 
-    let mut offset = 0u32;
-    for chunk in firmware.chunks(CHUNK_SIZE) {
+    for (i, chunk) in firmware.chunks(CHUNK_SIZE).enumerate() {
+        let offset = (i * CHUNK_SIZE) as u32;
         let response = transport.send_recv(&Command::DataBlock {
             offset,
             data: chunk.to_vec(),
@@ -118,8 +118,7 @@ pub fn upload(transport: &mut Transport, file: &Path, bank: u8, version: u32) ->
             }
         }
 
-        offset += chunk.len() as u32;
-        pb.set_position(offset as u64);
+        pb.set_position(offset as u64 + chunk.len() as u64);
     }
 
     pb.finish_with_message("Upload complete");
