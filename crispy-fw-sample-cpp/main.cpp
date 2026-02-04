@@ -1,52 +1,79 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2026 ADNT Sarl <info@adnt.io>
-//
-// Minimal C++ firmware sample for Crispy Bootloader
-// Bare-metal LED blink without SDK initialization.
+// C++ firmware for Crispy Bootloader using Pico SDK
 
-#include <cstdint>
+#include <crispy/crispy.h>
 
-// RP2040 register addresses
-constexpr uint32_t SIO_BASE = 0xD0000000;
-constexpr uint32_t GPIO_OUT_SET = SIO_BASE + 0x014;
-constexpr uint32_t GPIO_OUT_CLR = SIO_BASE + 0x018;
-constexpr uint32_t GPIO_OE_SET = SIO_BASE + 0x024;
+#include "pico/stdlib.h"
+#include "hardware/gpio.h"
+#include <cstdio>
 
-constexpr uint32_t IO_BANK0_BASE = 0x40014000;
-constexpr uint32_t PADS_BANK0_BASE = 0x4001C000;
-constexpr uint32_t RESETS_BASE = 0x4000C000;
+using namespace crispy;
 
-constexpr uint32_t LED_PIN = 25;
-
-volatile uint32_t& reg(uint32_t addr) {
-    return *reinterpret_cast<volatile uint32_t*>(addr);
-}
-
-void delay(uint32_t cycles) {
-    for (volatile uint32_t i = 0; i < cycles; i++) {
-        asm volatile("nop");
-    }
+namespace {
+    char cmd_buf[64];
+    size_t cmd_pos = 0;
 }
 
 int main() {
-    // Unreset IO_BANK0 and PADS_BANK0 if needed
-    reg(RESETS_BASE + 0x0) &= ~((1 << 5) | (1 << 8)); // RESET register
-    while ((reg(RESETS_BASE + 0x8) & ((1 << 5) | (1 << 8))) != ((1 << 5) | (1 << 8))) {}
+    stdio_init_all();
 
-    // Configure GPIO25 function to SIO (F5)
-    reg(IO_BANK0_BASE + 0x0CC) = 5; // GPIO25_CTRL = SIO
+    // Initialize LED
+    gpio_init(LED_PIN);
+    gpio_set_dir(LED_PIN, GPIO_OUT);
 
-    // Configure pad
-    reg(PADS_BANK0_BASE + 0x68) = 0x56; // GPIO25 pad: output enable, no pull
+    // Quick blink to signal firmware alive
+    for (int i = 0; i < 5; i++) {
+        gpio_put(LED_PIN, 1);
+        sleep_ms(100);
+        gpio_put(LED_PIN, 0);
+        sleep_ms(100);
+    }
 
-    // Set as output
-    reg(GPIO_OE_SET) = (1 << LED_PIN);
+    // Confirm boot to bootloader
+    confirm_boot();
 
-    // Blink loop
+    print_welcome();
+    print_prompt();
+
+    uint32_t last_blink = 0;
+    bool led_state = false;
+
     while (true) {
-        reg(GPIO_OUT_SET) = (1 << LED_PIN);
-        delay(500000);
-        reg(GPIO_OUT_CLR) = (1 << LED_PIN);
-        delay(500000);
+        // Read USB CDC input
+        int c = getchar_timeout_us(0);
+        if (c != PICO_ERROR_TIMEOUT) {
+            char ch = static_cast<char>(c);
+            putchar(ch);
+
+            if (ch == '\r' || ch == '\n') {
+                printf("\r\n");
+                if (cmd_pos > 0) {
+                    cmd_buf[cmd_pos] = '\0';
+                    if (process_command(cmd_buf)) {
+                        sleep_ms(100);
+                        reboot_to_bootloader();
+                    }
+                    cmd_pos = 0;
+                }
+                print_prompt();
+            }
+            else if (ch == 0x7F || ch == 0x08) {
+                if (cmd_pos > 0) {
+                    cmd_pos--;
+                    printf("\b \b");
+                }
+            }
+            else if (cmd_pos < sizeof(cmd_buf) - 1) {
+                cmd_buf[cmd_pos++] = ch;
+            }
+        }
+
+        // Slow blink LED (toggle every 500ms)
+        uint32_t now = to_ms_since_boot(get_absolute_time());
+        if (now - last_blink >= 500) {
+            last_blink = now;
+            led_state = !led_state;
+            gpio_put(LED_PIN, led_state);
+        }
     }
 }

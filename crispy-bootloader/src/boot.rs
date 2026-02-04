@@ -185,10 +185,95 @@ fn bank_metadata(bd: &BootData, bank: u8) -> (u32, u32) {
 /// Caller must ensure `flash_addr` and `layout` are valid.
 pub unsafe fn load_and_jump(flash_addr: u32, layout: &MemoryLayout) -> ! {
     copy_firmware_to_ram(flash_addr, layout);
+
+    // Reset peripherals before jumping so firmware SDK can reinitialize cleanly
+    prepare_for_firmware_handoff();
+
     relocate_vector_table(layout.ram_base);
 
     let vt = VectorTable::read_from(layout.ram_base);
     jump_to_firmware(vt.initial_sp, vt.reset_vector);
+}
+
+/// Prepare the system for firmware handoff.
+/// Clocks are left configured - SDK's runtime_init_clocks handles this
+/// by switching away from PLLs before reconfiguring them.
+unsafe fn prepare_for_firmware_handoff() {
+    // Disable all interrupts
+    cortex_m::interrupt::disable();
+
+    // Clear all pending interrupts in NVIC
+    const NVIC_ICPR: *mut u32 = 0xE000_E280 as *mut u32;
+    NVIC_ICPR.write_volatile(0xFFFF_FFFF);
+
+    // Disable all NVIC interrupts
+    const NVIC_ICER: *mut u32 = 0xE000_E180 as *mut u32;
+    NVIC_ICER.write_volatile(0xFFFF_FFFF);
+
+    // NOTE: Clocks are NOT reset - SDK handles this by switching
+    // clk_sys to clk_ref before touching PLLs
+}
+
+/// Reset clocks to power-on reset state:
+/// - clk_sys runs from clk_ref
+/// - clk_ref runs from ROSC
+/// - XOSC disabled
+/// - PLLs in reset
+/// - Watchdog tick disabled
+unsafe fn reset_clocks_to_power_on_state() {
+    // RP2040 clock register base addresses
+    const CLOCKS_BASE: u32 = 0x4000_8000;
+    const CLK_REF_CTRL: *mut u32 = (CLOCKS_BASE + 0x30) as *mut u32;
+    const CLK_REF_SELECTED: *const u32 = (CLOCKS_BASE + 0x38) as *const u32;
+    const CLK_SYS_CTRL: *mut u32 = (CLOCKS_BASE + 0x3C) as *mut u32;
+    const CLK_SYS_SELECTED: *const u32 = (CLOCKS_BASE + 0x44) as *const u32;
+
+    const XOSC_BASE: u32 = 0x4002_4000;
+    const XOSC_CTRL: *mut u32 = XOSC_BASE as *mut u32;
+
+    const RESETS_BASE: u32 = 0x4000_C000;
+    const RESETS_RESET: *mut u32 = RESETS_BASE as *mut u32;
+
+    const WATCHDOG_BASE: u32 = 0x4005_8000;
+    const WATCHDOG_TICK: *mut u32 = (WATCHDOG_BASE + 0x2C) as *mut u32;
+
+    const PLL_SYS_RESET_BIT: u32 = 1 << 12;
+    const PLL_USB_RESET_BIT: u32 = 1 << 13;
+
+    // Step 1: Switch clk_sys to clk_ref (SRC=0)
+    // Clear SRC bit to select clk_ref as source
+    let ctrl = CLK_SYS_CTRL.read_volatile();
+    CLK_SYS_CTRL.write_volatile(ctrl & !0x1);
+    // Wait for switch to complete
+    while CLK_SYS_SELECTED.read_volatile() != 0x1 {
+        core::hint::spin_loop();
+    }
+
+    // Step 2: Switch clk_ref to ROSC (SRC=0)
+    // Clear SRC bits to select ROSC
+    let ctrl = CLK_REF_CTRL.read_volatile();
+    CLK_REF_CTRL.write_volatile(ctrl & !0x3);
+    // Wait for switch to complete
+    while CLK_REF_SELECTED.read_volatile() != 0x1 {
+        core::hint::spin_loop();
+    }
+
+    // Step 3: Disable XOSC
+    // Write DISABLE magic to XOSC_CTRL.ENABLE
+    const XOSC_CTRL_DISABLE: u32 = 0xD1E << 12;
+    let ctrl = XOSC_CTRL.read_volatile();
+    XOSC_CTRL.write_volatile((ctrl & !0x00FFF000) | XOSC_CTRL_DISABLE);
+
+    // Step 4: Put PLLs into reset
+    let reset = RESETS_RESET.read_volatile();
+    RESETS_RESET.write_volatile(reset | PLL_SYS_RESET_BIT | PLL_USB_RESET_BIT);
+
+    // Step 5: Disable watchdog tick
+    WATCHDOG_TICK.write_volatile(0);
+
+    // Memory barriers
+    cortex_m::asm::dsb();
+    cortex_m::asm::isb();
 }
 
 unsafe fn copy_firmware_to_ram(flash_addr: u32, layout: &MemoryLayout) {
@@ -212,6 +297,7 @@ unsafe fn relocate_vector_table(ram_base: u32) {
 unsafe fn jump_to_firmware(initial_sp: u32, reset_vector: u32) -> ! {
     core::arch::asm!(
         "msr msp, {sp}",
+        "cpsie i",  // Re-enable interrupts before jumping (SDK expects PRIMASK=0)
         "bx {reset}",
         sp = in(reg) initial_sp,
         reset = in(reg) reset_vector,

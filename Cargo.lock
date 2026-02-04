@@ -349,6 +349,7 @@ dependencies = [
 name = "crispy-common"
 version = "0.1.0"
 dependencies = [
+ "cortex-m",
  "embedded-hal 1.0.0",
  "heapless 0.8.0",
  "postcard",
@@ -357,7 +358,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "crispy-fw-sample"
+name = "crispy-fw-sample-rs"
 version = "0.1.0"
 dependencies = [
  "cortex-m",

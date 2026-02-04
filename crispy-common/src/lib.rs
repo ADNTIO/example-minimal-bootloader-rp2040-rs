@@ -16,6 +16,10 @@ extern crate alloc;
 pub mod cobs;
 pub mod protocol;
 
+// Flash operations for firmware (requires embedded feature)
+#[cfg(feature = "embedded")]
+pub mod flash;
+
 // Re-export commonly used types
 pub use protocol::{AckStatus, BootState, BootData, Command, Response};
 pub use protocol::{BOOT_DATA_ADDR, BOOT_DATA_MAGIC, FLASH_BASE, FW_A_ADDR, FW_B_ADDR};

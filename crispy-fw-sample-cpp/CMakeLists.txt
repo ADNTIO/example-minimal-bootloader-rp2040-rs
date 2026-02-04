@@ -18,29 +18,19 @@ set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
 
+# Include Crispy SDK
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../crispy-sdk-cpp crispy-sdk-cpp)
+
+# Firmware executable
 add_executable(crispy-fw-sample-cpp
     main.cpp
 )
 
+# Link Pico stdlib and Crispy SDK
 target_link_libraries(crispy-fw-sample-cpp
-    pico_runtime
+    pico_stdlib
+    crispy_sdk
 )
 
-# Skip timer alarm pool initialization (causes hw_claim assertion)
-target_compile_definitions(crispy-fw-sample-cpp PRIVATE
-    PICO_TIME_DEFAULT_ALARM_POOL_DISABLED=1
-)
-
-# RAM execution (no flash) - SDK provides linker script for 0x20000000
-pico_set_binary_type(crispy-fw-sample-cpp no_flash)
-
-# Disable USB and UART stdio (we're a simple blinky)
-pico_enable_stdio_usb(crispy-fw-sample-cpp 0)
-pico_enable_stdio_uart(crispy-fw-sample-cpp 0)
-
-# Generate BIN manually (skip picotool which rejects custom RAM layout)
-find_program(OBJCOPY arm-none-eabi-objcopy)
-add_custom_command(TARGET crispy-fw-sample-cpp POST_BUILD
-    COMMAND ${OBJCOPY} -O binary $<TARGET_FILE:crispy-fw-sample-cpp> ${CMAKE_CURRENT_BINARY_DIR}/crispy-fw-sample-cpp.bin
-    COMMENT "Generating crispy-fw-sample-cpp.bin"
-)
+# Configure for Crispy bootloader (USB CDC, linker script, BIN generation)
+crispy_configure_firmware(crispy-fw-sample-cpp)

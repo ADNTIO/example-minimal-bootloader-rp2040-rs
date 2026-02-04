@@ -5,10 +5,13 @@ Rust workspace for Raspberry Pi Pico (RP2040) with an A/B bootloader that copies
 ## Project Structure
 
 ```
-crispy-bootloader/   # RP2040 bootloader (flash → RAM copy, A/B bank selection)
-crispy-fw-sample/    # Sample firmware (linked for RAM execution at 0x20000000)
-crispy-common/       # Shared crate (board init, LED blink)
-linker_scripts/      # Memory layouts for bootloader and firmware
+crispy-bootloader/     # RP2040 bootloader (flash → RAM copy, A/B bank selection)
+crispy-fw-sample-rs/   # Sample Rust firmware (linked for RAM execution at 0x20000000)
+crispy-fw-sample-cpp/  # Sample C++ firmware using Pico SDK
+crispy-sdk-cpp/        # C++ SDK for Crispy bootloader
+crispy-common/         # Shared Rust crate (board init, flash operations)
+scripts/python/        # Python upload tool and library
+linker_scripts/        # Memory layouts for bootloader and firmware
 ```
 
 ## Prerequisites
@@ -36,7 +39,7 @@ make host       # upload tool
 make combined   # create combined.bin
 
 # Manual commands (if no make)
-cargo build --release -p crispy-bootloader -p crispy-fw-sample --target thumbv6m-none-eabi
+cargo build --release -p crispy-bootloader -p crispy-fw-sample-rs --target thumbv6m-none-eabi
 cargo build --release -p crispy-upload
 
 # Check formatting

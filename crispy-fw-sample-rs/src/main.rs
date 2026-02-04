@@ -4,10 +4,8 @@
 #![no_std]
 #![no_main]
 
-use crispy_common::protocol::{
-    BootData, BOOT_DATA_ADDR, FLASH_BASE, FLASH_PAGE_SIZE, FLASH_SECTOR_SIZE,
-    RAM_UPDATE_FLAG_ADDR, RAM_UPDATE_MAGIC,
-};
+use crispy_common::flash;
+use crispy_common::protocol::BootData;
 use defmt_rtt as _;
 use embedded_hal::digital::OutputPin;
 use embedded_hal::digital::StatefulOutputPin;
@@ -29,74 +27,6 @@ fn usb_bus_ref() -> &'static UsbBusAllocator<UsbBus> {
     unsafe { (*core::ptr::addr_of!(USB_BUS)).as_ref().unwrap() }
 }
 
-/// Confirm the current boot to the bootloader by writing confirmed=1
-/// and resetting boot_attempts=0 in BootData.
-fn confirm_boot() {
-    let bd = unsafe { BootData::read_from(BOOT_DATA_ADDR) };
-    if !bd.is_valid() {
-        defmt::println!("BootData invalid, skipping confirmation");
-        return;
-    }
-    if bd.confirmed == 1 {
-        defmt::println!("Boot already confirmed");
-        return;
-    }
-
-    defmt::println!("Confirming boot (bank={})", bd.active_bank);
-
-    let mut bd = bd;
-    bd.confirmed = 1;
-    bd.boot_attempts = 0;
-
-    let offset = BOOT_DATA_ADDR - FLASH_BASE;
-
-    // Pad to 256-byte page
-    let mut page = [0xFFu8; FLASH_PAGE_SIZE as usize];
-    let src = bd.as_bytes();
-    page[..src.len()].copy_from_slice(src);
-
-    unsafe {
-        cortex_m::interrupt::disable();
-        rp2040_hal::rom_data::connect_internal_flash();
-        rp2040_hal::rom_data::flash_exit_xip();
-        rp2040_hal::rom_data::flash_range_erase(
-            offset,
-            FLASH_SECTOR_SIZE as usize,
-            FLASH_SECTOR_SIZE,
-            0x20,
-        );
-        rp2040_hal::rom_data::flash_flush_cache();
-        rp2040_hal::rom_data::flash_enter_cmd_xip();
-
-        rp2040_hal::rom_data::connect_internal_flash();
-        rp2040_hal::rom_data::flash_exit_xip();
-        rp2040_hal::rom_data::flash_range_program(offset, page.as_ptr(), page.len());
-        rp2040_hal::rom_data::flash_flush_cache();
-        rp2040_hal::rom_data::flash_enter_cmd_xip();
-        cortex_m::interrupt::enable();
-    }
-
-    defmt::println!("Boot confirmed successfully");
-}
-
-/// Reboot into bootloader update mode.
-/// Writes the RAM magic flag and triggers a system reset.
-/// The bootloader will detect the flag and enter update mode.
-fn reboot_to_bootloader() -> ! {
-    defmt::println!("Rebooting to bootloader update mode...");
-
-    // Write magic value to RAM flag address
-    unsafe {
-        (RAM_UPDATE_FLAG_ADDR as *mut u32).write_volatile(RAM_UPDATE_MAGIC);
-    }
-
-    // Small delay to allow defmt to flush
-    cortex_m::asm::delay(1_000_000);
-
-    // Trigger system reset
-    cortex_m::peripheral::SCB::sys_reset();
-}
-
 /// Process a received command line and return a response.
 /// Returns true if we should reboot to bootloader.
 fn process_command(line: &str, serial: &mut SerialPort<UsbBus>) -> bool {
@@ -111,7 +41,7 @@ fn process_command(line: &str, serial: &mut SerialPort<UsbBus>) -> bool {
             let _ = serial.write(b"  reboot   - Reboot normally\r\n");
         }
         "status" => {
-            let bd = unsafe { BootData::read_from(BOOT_DATA_ADDR) };
+            let bd = flash::read_boot_data();
             if bd.is_valid() {
                 let mut buf = [0u8; 256];
                 let len = format_status(&bd, &mut buf);
@@ -127,7 +57,7 @@ fn process_command(line: &str, serial: &mut SerialPort<UsbBus>) -> bool {
         "reboot" => {
             let _ = serial.write(b"Rebooting...\r\n");
             cortex_m::asm::delay(1_000_000);
-            cortex_m::peripheral::SCB::sys_reset();
+            flash::reboot();
         }
         "" => {}
         _ => {
@@ -205,7 +135,12 @@ fn main() -> ! {
     // Blink to signal firmware alive
     crispy_common::blink(&mut led_pin, &mut timer, 5, 100);
 
-    confirm_boot();
+    // Confirm boot using library
+    if flash::confirm_boot() {
+        defmt::println!("Boot confirmed");
+    } else {
+        defmt::println!("BootData invalid, skipping confirmation");
+    }
 
     // Initialize USB
     let usb_bus = UsbBusAllocator::new(hal::usb::UsbBus::new(
@@ -258,7 +193,7 @@ fn main() -> ! {
                                     usb_dev.poll(&mut [&mut serial]);
                                     cortex_m::asm::delay(10_000);
                                 }
-                                reboot_to_bootloader();
+                                flash::reboot_to_bootloader();
                             }
                         }
                         cmd_pos = 0;
