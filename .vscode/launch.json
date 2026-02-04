@@ -1,0 +1,61 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Bootloader",
+      "type": "probe-rs-debug",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "chip": "RP2040",
+      "speed": 5000,
+      "flashingConfig": {
+        "flashingEnabled": true,
+        "haltAfterReset": true
+      },
+      "coreConfigs": [
+        {
+          "coreIndex": 0,
+          "programBinary": "${workspaceFolder}/target/thumbv6m-none-eabi/debug/crispy-bootloader",
+          "rttEnabled": true,
+          "rttChannelFormats": [
+            {
+              "channelNumber": 0,
+              "dataFormat": "Defmt",
+              "mode": "NoBlockSkip",
+              "showTimestamps": true
+            }
+          ]
+        }
+      ],
+      "runtimeExecutable": "${userHome}/.cargo/bin/probe-rs",
+      "preLaunchTask": "Build All",
+      "wireProtocol": "Swd"
+    },
+    {
+      "name": "Debug Firmware (via bootloader)",
+      "type": "probe-rs-debug",
+      "request": "attach",
+      "cwd": "${workspaceFolder}",
+      "chip": "RP2040",
+      "speed": 5000,
+      "coreConfigs": [
+        {
+          "coreIndex": 0,
+          "programBinary": "${workspaceFolder}/target/thumbv6m-none-eabi/debug/crispy-fw-sample-rs",
+          "rttEnabled": true,
+          "rttChannelFormats": [
+            {
+              "channelNumber": 0,
+              "dataFormat": "Defmt",
+              "mode": "NoBlockSkip",
+              "showTimestamps": true
+            }
+          ]
+        }
+      ],
+      "runtimeExecutable": "${userHome}/.cargo/bin/probe-rs",
+      "preLaunchTask": "Flash and Boot Combined",
+      "wireProtocol": "Swd"
+    }
+  ]
+}

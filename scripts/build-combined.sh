@@ -9,12 +9,12 @@ TARGET="thumbv6m-none-eabi"
 OUTPUT_DIR="target/${TARGET}/${PROFILE}"
 
 BOOTLOADER_ELF="${OUTPUT_DIR}/crispy-bootloader"
-FW_ELF="${OUTPUT_DIR}/crispy-fw-sample"
+FW_ELF="${OUTPUT_DIR}/crispy-fw-sample-rs"
 
 # Check ELFs exist
 for f in "$BOOTLOADER_ELF" "$FW_ELF"; do
   if [ ! -f "$f" ]; then
-    echo "Error: $f not found. Run: cargo build --profile ${PROFILE} -p crispy-bootloader -p crispy-fw-sample"
+    echo "Error: $f not found. Run: cargo build --profile ${PROFILE} -p crispy-bootloader -p crispy-fw-sample-rs"
     exit 1
   fi
 done
@@ -23,8 +23,8 @@ done
 arm-none-eabi-objcopy -O binary "$BOOTLOADER_ELF" "${OUTPUT_DIR}/bootloader.bin"
 arm-none-eabi-objcopy -O binary "$FW_ELF" "${OUTPUT_DIR}/fw1.bin"
 
-# Firmware starts at offset 0x4100 (16640 bytes) in flash
-FW_OFFSET=16640
+# Firmware starts at offset 0x10000 (65536 bytes) in flash (sector-aligned after 64KB bootloader)
+FW_OFFSET=65536
 FW_SIZE=$(stat -c%s "${OUTPUT_DIR}/fw1.bin")
 COMBINED_SIZE=$(( (FW_OFFSET + FW_SIZE + 255) / 256 * 256 ))
 

@@ -1,8 +1,0 @@
-[build]
-target = "thumbv6m-none-eabi"
-
-[target.thumbv6m-none-eabi]
-linker = "flip-link"
-
-[env]
-DEFMT_LOG = "debug"

@@ -58,5 +58,14 @@ $RECYCLE.BIN/
 *.msp
 *.lnk
 
+### Python ###
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
 ### Project ###
 .claude/
+
+# C++ firmware build
+crispy-fw-sample-cpp/build/

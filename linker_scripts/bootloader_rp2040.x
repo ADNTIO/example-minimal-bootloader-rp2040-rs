@@ -2,23 +2,44 @@
 * SPDX-License-Identifier: MIT OR Apache-2.0
 * Bootloader linker script for RP2040
 *
-* Flash layout (2MB):
-*   0x10000000 - 0x10000100: BOOT2 (256B)
-*   0x10000100 - 0x10004100: Bootloader (16KB)
-*   0x10004100 - 0x100C4100: FW_A bank (768KB)
-*   0x100C4100 - 0x10184100: FW_B bank (768KB)
-*   0x10184100 - 0x10185100: BOOT_DATA (4KB)
-*
 * RAM layout (256KB):
 *   0x20000000 - 0x20030000: Firmware code (192KB, copied by bootloader)
 *   0x20030000 - 0x2003C000: Firmware data/BSS/stack (48KB)
 *   0x2003C000 - 0x20040000: Bootloader data/BSS/stack (16KB)
 */
 
+/* =========================== MEMORY LAYOUT CONFIG =========================== */
+/* Modify these values to change memory allocation (must be 4KB sector-aligned) */
+
+__flash_base       = 0x10000000;
+__boot2_size       = 0x100;      /* 256B - fixed by RP2040 */
+__bootloader_size  = 0x10000;    /* 64KB - adjust as needed */
+__fw_bank_size     = 0xC0000;    /* 768KB per firmware bank */
+__boot_data_size   = 0x1000;     /* 4KB for boot metadata */
+__fw_copy_size     = 0x30000;    /* 192KB copied to RAM */
+
+/* Bootloader RAM (top of SRAM) */
+__bootloader_ram   = 0x2003C000;
+__bootloader_ram_size = 16K;
+
+/* Firmware RAM base (copied from flash) */
+__fw_ram_base      = 0x20000000;
+
+/* Valid RAM range for firmware validation (includes SCRATCH areas for stack) */
+__fw_ram_start     = 0x20000000;
+__fw_ram_end       = 0x20042000;
+
+/* ============================================================================ */
+
+/* Calculated addresses (do not modify) */
+__fw_a_entry       = __flash_base + __bootloader_size;
+__fw_b_entry       = __fw_a_entry + __fw_bank_size;
+__boot_data_addr   = __fw_b_entry + __fw_bank_size;
+
 MEMORY {
-    BOOT2 : ORIGIN = 0x10000000, LENGTH = 0x100
-    FLASH : ORIGIN = 0x10000100, LENGTH = 16K
-    RAM   : ORIGIN = 0x2003C000, LENGTH = 16K
+    BOOT2 : ORIGIN = 0x10000000, LENGTH = __boot2_size
+    FLASH : ORIGIN = 0x10000000 + __boot2_size, LENGTH = __bootloader_size - __boot2_size
+    RAM   : ORIGIN = __bootloader_ram, LENGTH = __bootloader_ram_size
 }
 
 EXTERN(BOOT2_FIRMWARE)
@@ -54,11 +75,11 @@ SECTIONS {
     } > FLASH
 } INSERT AFTER .text;
 
-/* Firmware bank addresses in flash */
-PROVIDE(__fw_a_entry = 0x10004100);
-PROVIDE(__fw_b_entry = 0x100C4100);
-PROVIDE(__boot_data_addr = 0x10184100);
-
-/* Firmware copy parameters */
-PROVIDE(__fw_ram_base = 0x20000000);
-PROVIDE(__fw_copy_size = 0x30000);  /* 192KB */
+/* Export symbols for bootloader code */
+PROVIDE(__fw_a_entry = __fw_a_entry);
+PROVIDE(__fw_b_entry = __fw_b_entry);
+PROVIDE(__boot_data_addr = __boot_data_addr);
+PROVIDE(__fw_ram_base = __fw_ram_base);
+PROVIDE(__fw_copy_size = __fw_copy_size);
+PROVIDE(__fw_ram_start = __fw_ram_start);
+PROVIDE(__fw_ram_end = __fw_ram_end);

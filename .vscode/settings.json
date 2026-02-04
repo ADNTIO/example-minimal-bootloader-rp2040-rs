@@ -1,0 +1,11 @@
+{
+  "rust-analyzer.cargo.target": "thumbv6m-none-eabi",
+  "rust-analyzer.check.allTargets": false,
+  "editor.formatOnSave": true,
+  "files.exclude": {
+    ".pico-rs": true
+  },
+  "cortex-debug.openocdPath": "openocd",
+  "cortex-debug.gdbPath": "gdb-multiarch",
+  "cortex-debug.armToolchainPath": ""
+}
