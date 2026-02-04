@@ -61,7 +61,7 @@ class TestBuildArtifacts:
                 "build",
                 "--release",
                 "-p",
-                "crispy-fw-sample",
+                "crispy-fw-sample-rs",
                 "--target",
                 "thumbv6m-none-eabi",
             ],
@@ -81,7 +81,7 @@ class TestBuildArtifacts:
             / "target"
             / "thumbv6m-none-eabi"
             / "release"
-            / "crispy-fw-sample"
+            / "crispy-fw-sample-rs"
         )
         bin_path = project_root / "target" / "firmware.bin"
 

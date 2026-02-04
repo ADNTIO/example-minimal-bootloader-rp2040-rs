@@ -29,6 +29,9 @@ jobs:
       - name: Clippy (embedded)
         run: cargo clippy --release -p crispy-bootloader -p crispy-fw-sample-rs --target $TARGET -- -D warnings
 
+      - name: Install libudev
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+
       - name: Clippy (host)
         run: cargo clippy --release -p crispy-upload -- -D warnings
 

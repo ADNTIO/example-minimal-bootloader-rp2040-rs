@@ -12,7 +12,7 @@ all: embedded host
 
 # Build embedded packages (bootloader + firmware)
 embedded:
-	cargo build --release -p crispy-bootloader -p crispy-fw-sample --target $(EMBEDDED_TARGET)
+	cargo build --release -p crispy-bootloader -p crispy-fw-sample-rs --target $(EMBEDDED_TARGET)
 
 # Build host upload tool
 host:
@@ -23,7 +23,7 @@ bootloader:
 	cargo build --release -p crispy-bootloader --target $(EMBEDDED_TARGET)
 
 firmware:
-	cargo build --release -p crispy-fw-sample --target $(EMBEDDED_TARGET)
+	cargo build --release -p crispy-fw-sample-rs --target $(EMBEDDED_TARGET)
 
 upload:
 	cargo build --release -p crispy-upload
@@ -42,7 +42,7 @@ run-bootloader:
 # Linting
 clippy:
 	cargo clippy -p crispy-upload -- -D warnings
-	cargo clippy -p crispy-bootloader -p crispy-fw-sample --target $(EMBEDDED_TARGET) -- -D warnings
+	cargo clippy -p crispy-bootloader -p crispy-fw-sample-rs --target $(EMBEDDED_TARGET) -- -D warnings
 
 # Tests
 test:

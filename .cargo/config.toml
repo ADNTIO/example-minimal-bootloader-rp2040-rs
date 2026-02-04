@@ -1,5 +1,5 @@
 # NOTE: No default target set because workspace has mixed targets:
-# - crispy-bootloader, crispy-fw-sample: thumbv6m-none-eabi (embedded)
+# - crispy-bootloader, crispy-fw-sample-rs: thumbv6m-none-eabi (embedded)
 # - crispy-upload: host target (std)
 #
 # Build commands:

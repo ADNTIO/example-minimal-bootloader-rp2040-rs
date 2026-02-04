@@ -9,12 +9,12 @@ TARGET="thumbv6m-none-eabi"
 OUTPUT_DIR="target/${TARGET}/${PROFILE}"
 
 BOOTLOADER_ELF="${OUTPUT_DIR}/crispy-bootloader"
-FW_ELF="${OUTPUT_DIR}/crispy-fw-sample"
+FW_ELF="${OUTPUT_DIR}/crispy-fw-sample-rs"
 
 # Check ELFs exist
 for f in "$BOOTLOADER_ELF" "$FW_ELF"; do
   if [ ! -f "$f" ]; then
-    echo "Error: $f not found. Run: cargo build --profile ${PROFILE} -p crispy-bootloader -p crispy-fw-sample"
+    echo "Error: $f not found. Run: cargo build --profile ${PROFILE} -p crispy-bootloader -p crispy-fw-sample-rs"
     exit 1
   fi
 done

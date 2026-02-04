@@ -41,7 +41,7 @@
       "coreConfigs": [
         {
           "coreIndex": 0,
-          "programBinary": "${workspaceFolder}/target/thumbv6m-none-eabi/debug/crispy-fw-sample",
+          "programBinary": "${workspaceFolder}/target/thumbv6m-none-eabi/debug/crispy-fw-sample-rs",
           "rttEnabled": true,
           "rttChannelFormats": [
             {

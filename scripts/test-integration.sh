@@ -102,12 +102,12 @@ build_artifacts() {
     log_ok "Bootloader built"
 
     log_info "Building firmware..."
-    cargo build --release -p crispy-fw-sample --target thumbv6m-none-eabi
+    cargo build --release -p crispy-fw-sample-rs --target thumbv6m-none-eabi
     log_ok "Firmware built"
 
     log_info "Creating firmware binary..."
     arm-none-eabi-objcopy -O binary \
-        "$PROJECT_ROOT/target/thumbv6m-none-eabi/release/crispy-fw-sample" \
+        "$PROJECT_ROOT/target/thumbv6m-none-eabi/release/crispy-fw-sample-rs" \
         "$PROJECT_ROOT/target/firmware.bin"
 
     local size

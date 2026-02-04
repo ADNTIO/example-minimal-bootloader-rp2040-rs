@@ -173,7 +173,7 @@ def flashed_device(project_root, skip_flash):
             [
                 "cargo", "build", "--release",
                 "-p", "crispy-bootloader",
-                "-p", "crispy-fw-sample",
+                "-p", "crispy-fw-sample-rs",
                 "--target", "thumbv6m-none-eabi",
             ],
             cwd=project_root,
