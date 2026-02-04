@@ -72,11 +72,7 @@ pub fn run_update_mode(transport: &mut UsbTransport) -> ! {
 }
 
 /// Dispatch a command to its handler.
-fn handle_command(
-    transport: &mut UsbTransport,
-    state: UpdateState,
-    cmd: Command,
-) -> UpdateState {
+fn handle_command(transport: &mut UsbTransport, state: UpdateState, cmd: Command) -> UpdateState {
     match cmd {
         Command::GetStatus => handle_get_status(transport, state),
         Command::StartUpdate {

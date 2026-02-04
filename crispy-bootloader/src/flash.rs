@@ -59,16 +59,12 @@ pub fn init() {
     unsafe {
         ROM_CONNECT_INTERNAL_FLASH =
             core::mem::transmute::<usize, RomFnVoid>(rom_func_lookup(b"IF"));
-        ROM_FLASH_EXIT_XIP =
-            core::mem::transmute::<usize, RomFnVoid>(rom_func_lookup(b"EX"));
-        ROM_FLASH_RANGE_ERASE =
-            core::mem::transmute::<usize, RomFnErase>(rom_func_lookup(b"RE"));
+        ROM_FLASH_EXIT_XIP = core::mem::transmute::<usize, RomFnVoid>(rom_func_lookup(b"EX"));
+        ROM_FLASH_RANGE_ERASE = core::mem::transmute::<usize, RomFnErase>(rom_func_lookup(b"RE"));
         ROM_FLASH_RANGE_PROGRAM =
             core::mem::transmute::<usize, RomFnProgram>(rom_func_lookup(b"RP"));
-        ROM_FLASH_FLUSH_CACHE =
-            core::mem::transmute::<usize, RomFnVoid>(rom_func_lookup(b"FC"));
-        ROM_FLASH_ENTER_CMD_XIP =
-            core::mem::transmute::<usize, RomFnVoid>(rom_func_lookup(b"CX"));
+        ROM_FLASH_FLUSH_CACHE = core::mem::transmute::<usize, RomFnVoid>(rom_func_lookup(b"FC"));
+        ROM_FLASH_ENTER_CMD_XIP = core::mem::transmute::<usize, RomFnVoid>(rom_func_lookup(b"CX"));
     }
 }
 

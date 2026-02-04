@@ -162,7 +162,11 @@ pub fn select_boot_bank(bd: &BootData, layout: &MemoryLayout) -> (u32, BootData)
 }
 
 fn toggle_bank(bank: u8) -> u8 {
-    if bank == 0 { 1 } else { 0 }
+    if bank == 0 {
+        1
+    } else {
+        0
+    }
 }
 
 fn bank_addresses(bd: &BootData, layout: &MemoryLayout) -> (u32, u32) {
@@ -220,6 +224,7 @@ unsafe fn prepare_for_firmware_handoff() {
 /// - XOSC disabled
 /// - PLLs in reset
 /// - Watchdog tick disabled
+#[allow(dead_code)]
 unsafe fn reset_clocks_to_power_on_state() {
     // RP2040 clock register base addresses
     const CLOCKS_BASE: u32 = 0x4000_8000;

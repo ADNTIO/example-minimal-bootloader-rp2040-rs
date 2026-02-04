@@ -125,7 +125,9 @@ pub enum Command {
     FinishUpdate,
     Reboot,
     /// Set the active bank for the next boot (without uploading firmware).
-    SetActiveBank { bank: u8 },
+    SetActiveBank {
+        bank: u8,
+    },
     /// Wipe all firmware banks and reset boot data.
     WipeAll,
 }

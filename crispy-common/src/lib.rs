@@ -21,9 +21,9 @@ pub mod protocol;
 pub mod flash;
 
 // Re-export commonly used types
-pub use protocol::{AckStatus, BootState, BootData, Command, Response};
+pub use protocol::{AckStatus, BootData, BootState, Command, Response};
 pub use protocol::{BOOT_DATA_ADDR, BOOT_DATA_MAGIC, FLASH_BASE, FW_A_ADDR, FW_B_ADDR};
-pub use protocol::{FW_BANK_SIZE, FLASH_PAGE_SIZE, FLASH_SECTOR_SIZE, MAX_DATA_BLOCK_SIZE};
+pub use protocol::{FLASH_PAGE_SIZE, FLASH_SECTOR_SIZE, FW_BANK_SIZE, MAX_DATA_BLOCK_SIZE};
 
 // Embedded-specific exports (only with embedded feature)
 #[cfg(feature = "embedded")]

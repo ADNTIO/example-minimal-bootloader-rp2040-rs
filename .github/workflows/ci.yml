@@ -27,7 +27,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy (embedded)
-        run: cargo clippy --release -p crispy-bootloader -p crispy-fw-sample --target $TARGET -- -D warnings
+        run: cargo clippy --release -p crispy-bootloader -p crispy-fw-sample-rs --target $TARGET -- -D warnings
 
       - name: Clippy (host)
         run: cargo clippy --release -p crispy-upload -- -D warnings
@@ -43,7 +43,7 @@ jobs:
           targets: thumbv6m-none-eabi
 
       - name: Build
-        run: cargo build --release -p crispy-bootloader -p crispy-fw-sample --target $TARGET
+        run: cargo build --release -p crispy-bootloader -p crispy-fw-sample-rs --target $TARGET
 
       - name: Install arm-none-eabi-objcopy
         run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
@@ -51,7 +51,7 @@ jobs:
       - name: Create binaries
         run: |
           arm-none-eabi-objcopy -O binary target/$TARGET/release/crispy-bootloader target/$TARGET/release/crispy-bootloader.bin
-          arm-none-eabi-objcopy -O binary target/$TARGET/release/crispy-fw-sample target/$TARGET/release/crispy-fw-sample.bin
+          arm-none-eabi-objcopy -O binary target/$TARGET/release/crispy-fw-sample-rs target/$TARGET/release/crispy-fw-sample-rs.bin
           # Bootloader-only UF2
           python3 scripts/bin2uf2.py target/$TARGET/release/crispy-bootloader.bin target/$TARGET/release/crispy-bootloader.uf2 0x10000000
           # Combined (bootloader + firmware sample)
