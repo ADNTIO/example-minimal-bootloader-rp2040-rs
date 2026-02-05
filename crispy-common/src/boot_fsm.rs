@@ -154,24 +154,28 @@ pub fn try_boot_strategy(
             boot_attempts: current_attempts + 1,
             confirmed: 0,
         }),
-        BootStrategy::FallbackWithCrc if banks.fallback_validation.crc_valid => Some(BootDecision {
-            flash_addr: banks.fallback.addr,
-            active_bank: banks.fallback.bank_id,
-            boot_attempts: 1,
-            confirmed: 0,
-        }),
+        BootStrategy::FallbackWithCrc if banks.fallback_validation.crc_valid => {
+            Some(BootDecision {
+                flash_addr: banks.fallback.addr,
+                active_bank: banks.fallback.bank_id,
+                boot_attempts: 1,
+                confirmed: 0,
+            })
+        }
         BootStrategy::PrimaryBasic if banks.primary_validation.basic_valid => Some(BootDecision {
             flash_addr: banks.primary.addr,
             active_bank: banks.primary.bank_id,
             boot_attempts: current_attempts + 1,
             confirmed: 0,
         }),
-        BootStrategy::FallbackBasic if banks.fallback_validation.basic_valid => Some(BootDecision {
-            flash_addr: banks.fallback.addr,
-            active_bank: banks.fallback.bank_id,
-            boot_attempts: 1,
-            confirmed: 0,
-        }),
+        BootStrategy::FallbackBasic if banks.fallback_validation.basic_valid => {
+            Some(BootDecision {
+                flash_addr: banks.fallback.addr,
+                active_bank: banks.fallback.bank_id,
+                boot_attempts: 1,
+                confirmed: 0,
+            })
+        }
         _ => None,
     }
 }

@@ -4,8 +4,8 @@
 //! Unit tests for the boot bank selection FSM.
 
 use crispy_common::boot_fsm::{
-    bank_metadata, needs_rollback, select_boot_bank_fsm, toggle_bank, try_boot_strategy,
-    BankPair, BankValidation, BootDecision, BootStrategy, MAX_BOOT_ATTEMPTS,
+    bank_metadata, needs_rollback, select_boot_bank_fsm, toggle_bank, try_boot_strategy, BankPair,
+    BankValidation, BootDecision, BootStrategy, MAX_BOOT_ATTEMPTS,
 };
 use crispy_common::protocol::{BootData, BOOT_DATA_MAGIC};
 
@@ -444,10 +444,8 @@ fn test_select_boot_bank_fsm_falls_back_to_fallback_basic() {
 #[test]
 fn test_select_boot_bank_fsm_default_when_all_invalid() {
     let bd = make_boot_data();
-    let pair = BankPair::new(0, 0x1001_0000, 0x100D_0000, &bd).with_validation(
-        BankValidation::default(),
-        BankValidation::default(),
-    );
+    let pair = BankPair::new(0, 0x1001_0000, 0x100D_0000, &bd)
+        .with_validation(BankValidation::default(), BankValidation::default());
 
     let decision = select_boot_bank_fsm(&bd, pair);
     // Falls back to primary with incremented attempts
