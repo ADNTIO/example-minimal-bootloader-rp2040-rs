@@ -1,23 +1,23 @@
 # Crispy SDK for C++
 
-SDK pour développer des firmwares C++ compatibles avec le Crispy Bootloader sur RP2040.
+SDK for developing C++ firmwares compatible with the Crispy Bootloader on RP2040.
 
-## Fonctionnalités
+## Features
 
-- **Boot confirmation** : Confirme automatiquement le boot pour éviter le rollback
-- **USB CDC** : Communication série via USB
-- **Commandes intégrées** : `help`, `status`, `bootload`, `reboot`
-- **Linker script** : Configuration RAM pour exécution depuis le bootloader
+- **Boot confirmation**: Automatically confirms boot to prevent rollback
+- **USB CDC**: Serial communication via USB
+- **Built-in commands**: `help`, `status`, `bootload`, `reboot`
+- **Linker script**: RAM configuration for execution from the bootloader
 
-## Prérequis
+## Prerequisites
 
 - [Pico SDK](https://github.com/raspberrypi/pico-sdk)
 - CMake 3.13+
 - ARM GCC toolchain
 
-## Utilisation
+## Usage
 
-### 1. Ajouter le SDK à votre projet
+### 1. Add the SDK to your project
 
 ```cmake
 # CMakeLists.txt
@@ -28,18 +28,18 @@ include(pico_sdk_import.cmake)
 project(my_firmware C CXX ASM)
 pico_sdk_init()
 
-# Inclure Crispy SDK
+# Include Crispy SDK
 add_subdirectory(path/to/crispy-sdk-cpp)
 
-# Votre firmware
+# Your firmware
 add_executable(my_firmware main.cpp)
 target_link_libraries(my_firmware pico_stdlib crispy_sdk)
 
-# Configurer pour Crispy bootloader
+# Configure for Crispy bootloader
 crispy_configure_firmware(my_firmware)
 ```
 
-### 2. Code minimal
+### 2. Minimal code
 
 ```cpp
 #include <crispy/crispy.h>
@@ -50,10 +50,10 @@ using namespace crispy;
 int main() {
     stdio_init_all();
 
-    // Confirmer le boot au bootloader
+    // Confirm boot to the bootloader
     confirm_boot();
 
-    // Votre code...
+    // Your code...
     while (true) {
         // ...
     }
@@ -82,12 +82,12 @@ namespace crispy {
     struct BootData {
         uint32_t magic;
         uint8_t  active_bank;     // 0 = A, 1 = B
-        uint8_t  confirmed;       // 1 = boot confirmé
-        uint8_t  boot_attempts;   // Rollback après 3 tentatives
+        uint8_t  confirmed;       // 1 = boot confirmed
+        uint8_t  boot_attempts;   // Rollback after 3 attempts
         // ...
 
         bool is_valid() const;
-        const char* bank_name() const;  // "A" ou "B"
+        const char* bank_name() const;  // "A" or "B"
     };
 
     BootData read_boot_data();
@@ -107,63 +107,63 @@ namespace crispy {
 }
 ```
 
-## Commandes disponibles
+## Available commands
 
-| Commande   | Description                              |
+| Command    | Description                              |
 |------------|------------------------------------------|
-| `help`     | Affiche l'aide                           |
-| `status`   | Affiche l'état du boot (bank, confirmed) |
-| `bootload` | Redémarre en mode mise à jour            |
-| `reboot`   | Redémarre normalement                    |
+| `help`     | Display help                             |
+| `status`   | Display boot status (bank, confirmed)    |
+| `bootload` | Reboot to update mode                    |
+| `reboot`   | Reboot normally                          |
 
-## Structure des fichiers
+## File structure
 
 ```
 crispy-sdk-cpp/
 ├── CMakeLists.txt
 ├── README.md
 ├── include/crispy/
-│   ├── crispy.h          # Include principal
-│   ├── protocol.h        # Constantes du protocole
-│   ├── boot_data.h       # Structure BootData
-│   └── commands.h        # Traitement des commandes
+│   ├── crispy.h          # Main include
+│   ├── protocol.h        # Protocol constants
+│   ├── boot_data.h       # BootData structure
+│   └── commands.h        # Command processing
 ├── src/
 │   ├── boot_data.cpp
 │   └── commands.cpp
 └── linker/
-    └── memmap_crispy.ld  # Linker script RAM
+    └── memmap_crispy.ld  # RAM linker script
 ```
 
 ## Linker Script
 
-Le fichier `memmap_crispy.ld` configure le firmware pour :
+The `memmap_crispy.ld` file configures the firmware for:
 
-- **Exécution en RAM** à partir de `0x20000000`
-- **Vector table à offset 0** (requis par le bootloader)
-- **192KB max** pour le firmware
+- **RAM execution** starting at `0x20000000`
+- **Vector table at offset 0** (required by the bootloader)
+- **192KB max** for the firmware
 
-Le bootloader copie le firmware depuis la flash vers la RAM avant de l'exécuter.
+The bootloader copies the firmware from flash to RAM before executing it.
 
-## Upload du firmware
+## Uploading firmware
 
 ```bash
-# Mettre en mode update
+# Enter update mode
 make update-mode
 
-# Ou via commande série
+# Or via serial command
 echo "bootload" > /dev/ttyACM1
 
-# Uploader le firmware
+# Upload the firmware
 crispy-upload -p /dev/ttyACM1 upload build/my_firmware.bin
 crispy-upload -p /dev/ttyACM1 reboot
 ```
 
-## Compatibilité
+## Compatibility
 
 - RP2040 (Raspberry Pi Pico)
 - Pico SDK 1.5+
 - Crispy Bootloader
 
-## Licence
+## License
 
 MIT
