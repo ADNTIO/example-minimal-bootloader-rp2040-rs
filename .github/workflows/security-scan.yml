@@ -70,7 +70,7 @@ jobs:
         # Forgejo (GHES). Only publish on GitHub; on Forgejo the SBOMs are
         # still generated above, the run just skips the upload.
         if: github.server_url == 'https://github.com'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-scan
           path: sbom/*.cdx.json
@@ -136,7 +136,7 @@ jobs:
 
       - name: Upload Grype report
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: grype-reports-${{ matrix.sbom }}
           path: reports/
@@ -193,7 +193,7 @@ jobs:
 
       - name: Upload Trivy report
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-reports-${{ matrix.sbom }}
           path: reports/
