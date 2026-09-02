@@ -9,7 +9,8 @@ on:
       - '**/pyproject.toml'
       - '**/uv.lock'
       - '.github/workflows/security-scan.yml'
-  push: {}
+  push:
+    branches: ['**']
   schedule:
     # Weekly scan to catch newly disclosed advisories (Mondays 06:00 UTC)
     - cron: '0 6 * * 1'
