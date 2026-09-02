@@ -1,8 +1,6 @@
-name: SBOM -> Dependency-Track
-# Generate a CycloneDX SBOM of the whole repo with cdxgen (OWASP, multi-language:
-# cargo/pip/npm/… auto-detected) and publish it to the ADNT Dependency-Track on
-# every push — one vulnerability-tracking version per branch/tag
-# (projectVersion = ref_name).
+name: SBOM + vulnerability scan
+# Generate and scan a CycloneDX SBOM on every branch/tag push. Tagged versions
+# are also published to Dependency-Track (projectVersion = tag name).
 on:
   push: {}
   workflow_dispatch:
@@ -12,7 +10,7 @@ permissions:
 
 jobs:
   sbom:
-    name: Generate + publish SBOM
+    name: Generate + scan + publish tagged SBOM
     # GitHub-only: the file lives under .github/ but Forgejo (GHES) also runs
     # these workflows. This gate keeps publishing on GitHub only.
     if: github.server_url == 'https://github.com'
@@ -25,7 +23,33 @@ jobs:
         # which this Dependency-Track server rejects. 1.6 is supported by DT >= 4.11.
         run: npx --yes @cyclonedx/cdxgen@latest -o bom.json --spec-version 1.6
 
+      - name: Inject vulnerable component for test
+        if: github.ref == 'refs/heads/feature/29-publish_sbom_in_dtrack'
+        run: |
+          jq '.components += [{
+            "type": "library",
+            "name": "log4j-core",
+            "version": "2.14.1",
+            "purl": "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1"
+          }]' bom.json > bom.test.json
+          mv bom.test.json bom.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: bom.json
+
+      - name: Install Grype
+        run: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sudo sh -s -- -b /usr/local/bin
+
+      - id: grype
+        name: Scan SBOM with Grype
+        continue-on-error: true
+        run: grype sbom:bom.json --fail-on high
+
       - name: Publish to Dependency-Track
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           DTRACK_API_KEY: ${{ secrets.DTRACK_API_KEY }}
           PROJECT_NAME: ${{ github.event.repository.name }}
@@ -45,3 +69,7 @@ jobs:
             404) echo "::error::404 project — check autoCreate=true + PROJECT_CREATION_UPLOAD on the server."; cat resp.json; exit 1 ;;
             *)   echo "::error::Dependency-Track upload failed (HTTP $code)."; cat resp.json; exit 1 ;;
           esac
+
+      - name: Fail on high vulnerabilities
+        if: steps.grype.outcome == 'failure'
+        run: exit 1
