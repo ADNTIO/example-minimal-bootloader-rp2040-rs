@@ -23,17 +23,6 @@ jobs:
         # which this Dependency-Track server rejects. 1.6 is supported by DT >= 4.11.
         run: npx --yes @cyclonedx/cdxgen@latest -o bom.json --spec-version 1.6
 
-      - name: Inject vulnerable component for test
-        if: github.ref == 'refs/heads/feature/29-publish_sbom_in_dtrack'
-        run: |
-          jq '.components += [{
-            "type": "library",
-            "name": "log4j-core",
-            "version": "2.14.1",
-            "purl": "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1"
-          }]' bom.json > bom.test.json
-          mv bom.test.json bom.json
-
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
         with:
