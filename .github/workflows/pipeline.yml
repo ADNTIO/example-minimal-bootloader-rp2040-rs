@@ -1,0 +1,196 @@
+name: Pipeline
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  TARGET: thumbv6m-none-eabi
+
+jobs:
+  metadata:
+    name: Detect release tag
+    runs-on: ubuntu-latest
+    outputs:
+      is_release: ${{ steps.tag.outputs.is_release }}
+    steps:
+      - id: tag
+        name: Match vX.Y.Z
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Generate CycloneDX 1.6 SBOM
+        run: |
+          mkdir -p sbom
+          npx --yes @cyclonedx/cdxgen@latest \
+            -o sbom/bom.cdx.json \
+            --spec-version 1.6
+      - uses: actions/upload-artifact@v5
+        with:
+          name: sbom
+          path: sbom/bom.cdx.json
+          retention-days: 7
+
+  grype:
+    name: Scan SBOM with Grype
+    needs: sbom
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: sbom
+          path: sbom
+      - name: Install Grype
+        run: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sudo sh -s -- -b /usr/local/bin
+      - name: Fail on any vulnerability
+        run: grype sbom:sbom/bom.cdx.json --fail-on negligible
+
+  trivy:
+    name: Scan SBOM with Trivy
+    needs: sbom
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: sbom
+          path: sbom
+      - name: Install Trivy
+        run: curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+      - name: Fail on any vulnerability
+        run: trivy sbom sbom/bom.cdx.json --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 1
+
+  check:
+    name: Format + Lint
+    needs: [metadata, grype, trivy]
+    if: needs.metadata.outputs.is_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set version from tag
+        run: printf '%s' "${GITHUB_REF_NAME#v}" > VERSION
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv6m-none-eabi
+          components: rustfmt, clippy
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Lint
+        run: make lint
+
+  test:
+    name: Unit Tests
+    needs: [metadata, grype, trivy]
+    if: needs.metadata.outputs.is_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set version from tag
+        run: printf '%s' "${GITHUB_REF_NAME#v}" > VERSION
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: astral-sh/setup-uv@v6
+      - name: Run tests
+        run: make test-unit
+
+  build:
+    name: Build All
+    needs: [metadata, grype, trivy]
+    if: needs.metadata.outputs.is_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set version from tag
+        run: printf '%s' "${GITHUB_REF_NAME#v}" > VERSION
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv6m-none-eabi, x86_64-pc-windows-gnu
+          components: llvm-tools-preview
+      - name: Install tools
+        run: |
+          cargo install cargo-binutils flip-link
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev gcc-arm-none-eabi cmake mingw-w64
+      - name: Build all
+        run: make all
+      - uses: actions/upload-artifact@v5
+        with:
+          name: build
+          path: |
+            target/${{ env.TARGET }}/release/crispy-bootloader
+            target/${{ env.TARGET }}/release/crispy-bootloader.bin
+            target/${{ env.TARGET }}/release/crispy-bootloader.uf2
+            target/${{ env.TARGET }}/release/crispy-fw-sample-rs
+            target/${{ env.TARGET }}/release/crispy-fw-sample-rs.bin
+            crispy-fw-sample-cpp/build/crispy-fw-sample-cpp.elf
+            crispy-fw-sample-cpp/build/crispy-fw-sample-cpp.bin
+            target/release/crispy-upload
+            target/x86_64-pc-windows-gnu/release/crispy-upload.exe
+
+  release:
+    name: Create GitHub Release
+    needs: [metadata, grype, trivy, check, test, build]
+    if: needs.metadata.outputs.is_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+      - name: Prepare release assets
+        run: ./scripts/ci/prepare-release-assets.sh release release
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+
+  dtrack:
+    name: Publish SBOM to Dependency-Track
+    needs: [metadata, grype, trivy, check, test, build]
+    if: needs.metadata.outputs.is_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: sbom
+          path: sbom
+      - name: Publish SBOM
+        env:
+          DTRACK_API_KEY: ${{ secrets.DTRACK_API_KEY }}
+          PROJECT_NAME: ${{ github.event.repository.name }}
+          PROJECT_VERSION: ${{ github.ref_name }}
+        run: |
+          code=$(curl -sS -o response.json -w '%{http_code}' \
+            -X POST https://dtrack.k8s.adnt.io/api/v1/bom \
+            -H "X-Api-Key: $DTRACK_API_KEY" \
+            -F "autoCreate=true" \
+            -F "projectName=$PROJECT_NAME" \
+            -F "projectVersion=$PROJECT_VERSION" \
+            -F "bom=@sbom/bom.cdx.json")
+          case "$code" in
+            2*) echo "SBOM published to $PROJECT_NAME@$PROJECT_VERSION" ;;
+            *) cat response.json; exit 1 ;;
+          esac
