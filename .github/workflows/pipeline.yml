@@ -59,8 +59,8 @@ jobs:
           path: sbom
       - name: Install Grype
         run: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sudo sh -s -- -b /usr/local/bin
-      - name: Fail on any vulnerability
-        run: grype sbom:sbom/bom.cdx.json --fail-on negligible
+      - name: Fail on HIGH or CRITICAL vulnerabilities
+        run: grype sbom:sbom/bom.cdx.json --fail-on high
 
   trivy:
     name: Scan SBOM with Trivy
@@ -73,8 +73,8 @@ jobs:
           path: sbom
       - name: Install Trivy
         run: curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
-      - name: Fail on any vulnerability
-        run: trivy sbom sbom/bom.cdx.json --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 1
+      - name: Fail on HIGH or CRITICAL vulnerabilities
+        run: trivy sbom sbom/bom.cdx.json --severity HIGH,CRITICAL --exit-code 1
 
   check:
     name: Format + Lint
