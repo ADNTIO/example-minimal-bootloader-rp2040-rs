@@ -78,7 +78,7 @@ jobs:
 
   check:
     name: Format + Lint
-    needs: [metadata, grype, trivy]
+    needs: metadata
     if: needs.metadata.outputs.is_release == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -102,7 +102,7 @@ jobs:
 
   test:
     name: Unit Tests
-    needs: [metadata, grype, trivy]
+    needs: metadata
     if: needs.metadata.outputs.is_release == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -116,7 +116,7 @@ jobs:
 
   build:
     name: Build All
-    needs: [metadata, grype, trivy]
+    needs: metadata
     if: needs.metadata.outputs.is_release == 'true'
     runs-on: ubuntu-latest
     steps:
