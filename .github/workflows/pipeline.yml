@@ -17,15 +17,19 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       is_release: ${{ steps.tag.outputs.is_release }}
+      is_public: ${{ steps.tag.outputs.is_public }}
     steps:
       - id: tag
         name: Match vX.Y.Z
         shell: bash
         run: |
-          if [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ "$GITHUB_REF" =~ ^refs/tags/v([0-9]+)\.[0-9]+\.[0-9]+$ ]]; then
             echo "is_release=true" >> "$GITHUB_OUTPUT"
+            ((10#${BASH_REMATCH[1]} > 0)) && public=true || public=false
+            echo "is_public=$public" >> "$GITHUB_OUTPUT"
           else
             echo "is_release=false" >> "$GITHUB_OUTPUT"
+            echo "is_public=false" >> "$GITHUB_OUTPUT"
           fi
 
   sbom:
@@ -166,6 +170,7 @@ jobs:
         with:
           files: release/*
           generate_release_notes: true
+          draft: ${{ needs.metadata.outputs.is_public != 'true' }}
 
   dtrack:
     name: Publish SBOM to Dependency-Track
