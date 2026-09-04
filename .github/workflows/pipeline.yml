@@ -20,17 +20,21 @@ jobs:
       is_public: ${{ steps.tag.outputs.is_public }}
     steps:
       - id: tag
-        name: Match vX.Y.Z
+        name: Match vX.Y.Z[-alpha|beta|rc.N]
         shell: bash
         run: |
-          if [[ "$GITHUB_REF" =~ ^refs/tags/v([0-9]+)\.[0-9]+\.[0-9]+$ ]]; then
-            echo "is_release=true" >> "$GITHUB_OUTPUT"
-            ((10#${BASH_REMATCH[1]} > 0)) && public=true || public=false
-            echo "is_public=$public" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_release=false" >> "$GITHUB_OUTPUT"
-            echo "is_public=false" >> "$GITHUB_OUTPUT"
+          # v1.0.0 et plus sans suffixe => release publiee + Dependency-Track.
+          # v0.x.y et pre-releases alpha/beta/rc => draft, pas de Dependency-Track.
+          is_release=false
+          is_public=false
+          if [[ "$GITHUB_REF" =~ ^refs/tags/v([0-9]+)\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+            is_release=true
+            if ((10#${BASH_REMATCH[1]} > 0)) && [[ -z "${BASH_REMATCH[2]}" ]]; then
+              is_public=true
+            fi
           fi
+          echo "is_release=$is_release" >> "$GITHUB_OUTPUT"
+          echo "is_public=$is_public" >> "$GITHUB_OUTPUT"
 
   sbom:
     name: Generate SBOM
@@ -175,7 +179,7 @@ jobs:
   dtrack:
     name: Publish SBOM to Dependency-Track
     needs: [metadata, grype, trivy, check, test, build]
-    if: needs.metadata.outputs.is_release == 'true'
+    if: needs.metadata.outputs.is_public == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v8
