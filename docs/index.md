@@ -24,6 +24,7 @@ This documentation follows the Diataxis model:
 - [USB protocol](reference/protocol.md)
 - [Memory map](reference/memory-map.md)
 - [Boot data format](reference/boot-data.md)
+- [Versioning](reference/versioning.md)
 
 ## Explanation
 

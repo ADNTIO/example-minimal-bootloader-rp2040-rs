@@ -31,14 +31,7 @@ make test-integration
 ## Release Process
 
 - Create and push a tag in `vX.Y.Z` format to trigger the release workflow.
-- During tag builds, CI synchronizes all Rust crate `Cargo.toml` versions from the tag value.
-- If `minor` is even and non-zero (`Y % 2 == 0 && Y != 0`), GitHub release is official and marked as `latest`.
-- Otherwise, GitHub release is published as pre-release and not marked `latest`.
-
-Examples:
-
-- `v1.2.3`: official release, marked `latest`
-- `v1.0.0`: pre-release, not `latest`
+- Version conventions and CI effect per tag: [`docs/reference/versioning.md`](docs/reference/versioning.md).
 
 ## Documentation conventions
 
