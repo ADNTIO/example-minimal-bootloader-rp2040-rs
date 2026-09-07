@@ -31,7 +31,6 @@ make test-integration
 ## Release Process
 
 - Create and push a tag in `vX.Y.Z` format to trigger the release workflow.
-- During tag builds, CI synchronizes all Rust crate `Cargo.toml` versions from the tag value.
 - Version conventions and CI effect per tag: [`docs/reference/versioning.md`](docs/reference/versioning.md).
 
 ## Documentation conventions
